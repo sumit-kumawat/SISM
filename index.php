@@ -80,7 +80,7 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PingPuls - Real Time Monitoring</title>
+    <title>System Information & Service Monitoring</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -104,8 +104,9 @@ $conn->close();
             height: 40px;
         }
         header input[type="text"] {
-            padding: 5px;
-            border: none;
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #ddd;
             border-radius: 5px;
         }
         #container {
@@ -211,9 +212,9 @@ $conn->close();
 </head>
 <body>
     <header>
-    <a href="index.php">
-        <img src="logo.png" alt="Logo">
-    </a>
+        <a href="index.php">
+            <img src="logo.png" alt="Logo">
+        </a>
         <input type="text" id="search" placeholder="Search...">
     </header>
 
@@ -260,7 +261,6 @@ $conn->close();
     <div id="deleteModal" class="modal">
         <div class="modal-content">
             <h2>Are you sure?</h2>
-            <p>This action cannot be undone.</p>
             <form id="deleteForm" method="POST">
                 <input type="hidden" name="action" value="delete_host">
                 <input type="hidden" id="deleteId" name="id">
@@ -273,45 +273,28 @@ $conn->close();
     <!-- Live View Modal -->
     <div id="liveViewModal" class="modal">
         <div class="modal-content">
-            <h2>Live View</h2>
-            <div class="live-output" id="liveOutput"></div>
+            <h2>Live Output</h2>
+            <div id="liveOutput" class="live-output"></div>
             <button type="button" onclick="closeLiveViewModal()">Close</button>
         </div>
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            document.querySelectorAll('.card').forEach(card => {
-                pingHost(card.dataset.ip, card);
-                setInterval(() => pingHost(card.dataset.ip, card), 1000);
+        // Search Functionality
+        document.getElementById('search').addEventListener('input', function() {
+            let filter = this.value.toUpperCase();
+            let cards = document.querySelectorAll('#container .card');
+            cards.forEach(card => {
+                let name = card.querySelector('p').textContent;
+                if (name.toUpperCase().includes(filter)) {
+                    card.style.display = '';
+                } else {
+                    card.style.display = 'none';
+                }
             });
         });
 
-        function pingHost(ip, card) {
-            card.classList.add('loading');
-            fetch(`?action=ping&host=${encodeURIComponent(ip)}`)
-                .then(response => response.json())
-                .then(data => {
-                    card.querySelector('.status').innerText = data.status;
-                    card.classList.remove('loading');
-                    card.classList.remove('online');
-                    card.classList.remove('offline');
-                    card.classList.remove('down');
-                    if (data.status === 'Online') {
-                        card.classList.add('online');
-                    } else {
-                        card.classList.add('offline');
-                    }
-                })
-                .catch(error => {
-                    card.querySelector('.status').innerText = 'Down';
-                    card.classList.remove('loading');
-                    card.classList.remove('online');
-                    card.classList.remove('offline');
-                    card.classList.add('down');
-                });
-        }
-
+        // Edit Modal
         function openEditModal(id, name, ip) {
             document.getElementById('editId').value = id;
             document.getElementById('editName').value = name;
@@ -323,6 +306,7 @@ $conn->close();
             document.getElementById('editModal').style.display = 'none';
         }
 
+        // Delete Modal
         function openDeleteModal(id) {
             document.getElementById('deleteId').value = id;
             document.getElementById('deleteModal').style.display = 'flex';
@@ -332,16 +316,19 @@ $conn->close();
             document.getElementById('deleteModal').style.display = 'none';
         }
 
+        // Live View Modal
         function openLiveViewModal(ip) {
-            document.getElementById('liveOutput').innerText = 'Loading...';
             document.getElementById('liveViewModal').style.display = 'flex';
-            fetch(`?action=ping&host=${encodeURIComponent(ip)}`)
+            let output = document.getElementById('liveOutput');
+            output.textContent = 'Pinging...';
+            fetch(`?action=ping&host=${ip}`)
                 .then(response => response.json())
                 .then(data => {
-                    document.getElementById('liveOutput').innerText = data.output;
-                })
-                .catch(error => {
-                    document.getElementById('liveOutput').innerText = 'Error fetching data';
+                    if (data.status === 'Error') {
+                        output.textContent = data.message;
+                    } else {
+                        output.textContent = data.output;
+                    }
                 });
         }
 
@@ -349,18 +336,25 @@ $conn->close();
             document.getElementById('liveViewModal').style.display = 'none';
         }
 
-        document.getElementById('search').addEventListener('input', function() {
-            const searchValue = this.value.toLowerCase();
-            document.querySelectorAll('.card').forEach(card => {
-                const name = card.querySelector('p:first-of-type').innerText.toLowerCase();
-                const ip = card.querySelector('p:nth-of-type(2)').innerText.toLowerCase();
-                if (name.includes(searchValue) || ip.includes(searchValue)) {
-                    card.style.display = 'block';
-                } else {
-                    card.style.display = 'none';
-                }
-            });
+        // Update Status
+        const cards = document.querySelectorAll('.card');
+        cards.forEach(card => {
+            const ip = card.getAttribute('data-ip');
+            const statusEl = card.querySelector('.status');
+            fetch(`?action=ping&host=${ip}`)
+                .then(response => response.json())
+                .then(data => {
+                    statusEl.textContent = data.status;
+                    if (data.status === 'Online') {
+                        card.classList.remove('down', 'offline');
+                        card.classList.add('online');
+                    } else {
+                        card.classList.remove('online');
+                        card.classList.add('offline');
+                    }
+                });
         });
+
     </script>
 </body>
 </html>
