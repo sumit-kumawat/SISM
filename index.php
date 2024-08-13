@@ -80,7 +80,7 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ping Monitoring</title>
+    <title>PingPuls - Real Time Monitoring</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -211,7 +211,9 @@ $conn->close();
 </head>
 <body>
     <header>
-        <img src="logo.png" alt="Company Logo">
+    <a href="index.php">
+        <img src="logo.png" alt="Logo">
+    </a>
         <input type="text" id="search" placeholder="Search...">
     </header>
 
@@ -221,7 +223,7 @@ $conn->close();
         <input type="text" name="ip" placeholder="IP" required>
         <input type="submit" value="Add Host">
     </form>
-
+    <hr>
     <div id="container">
         <?php foreach ($hosts as $host): ?>
             <div class="card" data-id="<?php echo $host['id']; ?>" data-ip="<?php echo $host['ip']; ?>">
