@@ -5,14 +5,13 @@ if ($conn->connect_error) {
     die('Connection failed: ' . $conn->connect_error);
 }
 
-// Handle form submission to add a new host
+// Handle form submission to add, edit, and delete hosts
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add_host') {
         $name = isset($_POST['name']) ? $conn->real_escape_string($_POST['name']) : '';
         $ip = isset($_POST['ip']) ? $conn->real_escape_string($_POST['ip']) : '';
-
         if ($name && $ip) {
-            $stmt = $conn->prepare("INSERT INTO hosts (name, ip, status) VALUES (?, ?, 'Loading')");
+            $stmt = $conn->prepare("INSERT INTO hosts (name, ip, status) VALUES (?, ?, 'Loading...')");
             $stmt->bind_param('ss', $name, $ip);
             $stmt->execute();
             $stmt->close();
@@ -21,7 +20,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $id = intval($_POST['id']);
         $name = isset($_POST['name']) ? $conn->real_escape_string($_POST['name']) : '';
         $ip = isset($_POST['ip']) ? $conn->real_escape_string($_POST['ip']) : '';
-
         if ($id && $name && $ip) {
             $stmt = $conn->prepare("UPDATE hosts SET name = ?, ip = ? WHERE id = ?");
             $stmt->bind_param('ssi', $name, $ip, $id);
@@ -30,7 +28,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
     } elseif ($_POST['action'] === 'delete_host') {
         $id = intval($_POST['id']);
-
         if ($id) {
             $stmt = $conn->prepare("DELETE FROM hosts WHERE id = ?");
             $stmt->bind_param('i', $id);
@@ -46,15 +43,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'ping') {
     if ($host) {
         $output = [];
         $returnValue = 0;
-
-        // Detect OS and adjust ping command
         $os = PHP_OS_FAMILY;
         if ($os === 'Windows') {
             exec("ping -n 1 $host 2>&1", $output, $returnValue);
         } else {
             exec("ping -c 1 $host 2>&1", $output, $returnValue);
         }
-
         $status = ($returnValue === 0) ? 'Online' : 'Offline';
         echo json_encode([
             'status' => $status,
@@ -95,7 +89,7 @@ $conn->close();
             display: flex;
             justify-content: space-between;
             align-items: center;
-            position: -webkit-sticky; /* Safari */
+            position: -webkit-sticky;
             position: sticky;
             top: 0;
             z-index: 1000;
@@ -123,13 +117,10 @@ $conn->close();
             width: 250px;
             text-align: center;
             position: relative;
-            background-color: #d5d8dc; /* Default background color for Loading */
+            background-color: #d5d8dc;
         }
         .card.loading {
             background-color: #d5d8dc;
-        }
-        .card.down {
-            background-color: #fcf3cf;
         }
         .card.offline {
             background-color: #fadbd8;
@@ -203,7 +194,7 @@ $conn->close();
             margin: 5px;
         }
         .live-output {
-            white-space: pre-wrap; /* Maintain formatting of ping output */
+            white-space: pre-wrap;
             max-height: 200px;
             overflow-y: auto;
             text-align: left;
@@ -213,7 +204,7 @@ $conn->close();
 <body>
     <header>
         <a href="index.php">
-            <img src="logo.png" alt="Logo">
+            <img src="logo-light.svg" alt="Logo">
         </a>
         <input type="text" id="search" placeholder="Search...">
     </header>
@@ -224,7 +215,7 @@ $conn->close();
         <input type="text" name="ip" placeholder="IP" required>
         <input type="submit" value="Add Host">
     </form>
-    <hr>
+    <hr style="border: 1px solid #eaecee;">
     <div id="container">
         <?php foreach ($hosts as $host): ?>
             <div class="card" data-id="<?php echo $host['id']; ?>" data-ip="<?php echo $host['ip']; ?>">
@@ -250,9 +241,9 @@ $conn->close();
                 <input type="hidden" name="action" value="edit_host">
                 <input type="hidden" id="editId" name="id">
                 <input type="text" id="editName" name="name" placeholder="Host or FQDN or DNS" required>
-                <input type="text" id="editIP" name="ip" placeholder="IP" required>
-                <button type="submit">Update</button>
-                <button type="button" onclick="closeEditModal()">Cancel</button>
+                <input type="text" id="editIp" name="ip" placeholder="IP" required>
+                <button type="submit">Save</button>
+                <button type="button" onclick="closeModal('editModal')">Cancel</button>
             </form>
         </div>
     </div>
@@ -260,12 +251,13 @@ $conn->close();
     <!-- Delete Modal -->
     <div id="deleteModal" class="modal">
         <div class="modal-content">
-            <h2>Are you sure?</h2>
+            <h2>Delete Host</h2>
             <form id="deleteForm" method="POST">
                 <input type="hidden" name="action" value="delete_host">
                 <input type="hidden" id="deleteId" name="id">
-                <button type="submit">Delete</button>
-                <button type="button" onclick="closeDeleteModal()">Cancel</button>
+                <p>Are you sure you want to delete this host?</p>
+                <button type="submit">Yes</button>
+                <button type="button" onclick="closeModal('deleteModal')">No</button>
             </form>
         </div>
     </div>
@@ -273,14 +265,14 @@ $conn->close();
     <!-- Live View Modal -->
     <div id="liveViewModal" class="modal">
         <div class="modal-content">
-            <h2>Live Output</h2>
-            <div id="liveOutput" class="live-output"></div>
-            <button type="button" onclick="closeLiveViewModal()">Close</button>
+            <h2>Live View</h2>
+            <pre class="live-output"></pre>
+            <button type="button" onclick="closeModal('liveViewModal')">Close</button>
         </div>
     </div>
 
     <script>
-        // Search Functionality
+        // Search functionality
         document.getElementById('search').addEventListener('input', function() {
             let filter = this.value.toUpperCase();
             let cards = document.querySelectorAll('#container .card');
@@ -294,49 +286,37 @@ $conn->close();
             });
         });
 
-        // Edit Modal
+        // Open Edit Modal
         function openEditModal(id, name, ip) {
             document.getElementById('editId').value = id;
             document.getElementById('editName').value = name;
-            document.getElementById('editIP').value = ip;
+            document.getElementById('editIp').value = ip;
             document.getElementById('editModal').style.display = 'flex';
         }
 
-        function closeEditModal() {
-            document.getElementById('editModal').style.display = 'none';
-        }
-
-        // Delete Modal
+        // Open Delete Modal
         function openDeleteModal(id) {
             document.getElementById('deleteId').value = id;
             document.getElementById('deleteModal').style.display = 'flex';
         }
 
-        function closeDeleteModal() {
-            document.getElementById('deleteModal').style.display = 'none';
-        }
-
-        // Live View Modal
+        // Open Live View Modal
         function openLiveViewModal(ip) {
+            document.querySelector('.live-output').textContent = 'Loading...';
             document.getElementById('liveViewModal').style.display = 'flex';
-            let output = document.getElementById('liveOutput');
-            output.textContent = 'Pinging...';
             fetch(`?action=ping&host=${ip}`)
                 .then(response => response.json())
                 .then(data => {
-                    if (data.status === 'Error') {
-                        output.textContent = data.message;
-                    } else {
-                        output.textContent = data.output;
-                    }
+                    document.querySelector('.live-output').textContent = data.output;
                 });
         }
 
-        function closeLiveViewModal() {
-            document.getElementById('liveViewModal').style.display = 'none';
+        // Close Modal
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
         }
 
-        // Update Status
+        // Ping and Update Status on Page Load
         const cards = document.querySelectorAll('.card');
         cards.forEach(card => {
             const ip = card.getAttribute('data-ip');
@@ -354,7 +334,6 @@ $conn->close();
                     }
                 });
         });
-
     </script>
 </body>
 </html>
